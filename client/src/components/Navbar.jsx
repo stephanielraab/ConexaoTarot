@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Wallet, LogOut, Flame, LayoutDashboard, Compass } from 'lucide-react';
+import { Sparkles, Wallet, LogOut, Flame, LayoutDashboard, Compass, CalendarDays } from 'lucide-react';
 
 export default function Navbar({ 
   user, 
@@ -11,7 +11,8 @@ export default function Navbar({
   onOpenAdmin,
   onOpenReaderRegister,
   onOpenDailyCard,
-  onOpenProfile
+  onOpenProfile,
+  onOpenMyConsultations
 }) {
   return (
     <header className="sticky top-0 z-40 bg-[#08090e]/95 backdrop-blur-md border-b border-[#d4af37]/20">
@@ -89,6 +90,18 @@ export default function Navbar({
                     <span className="sm:hidden">+</span>
                   </button>
                 </div>
+              )}
+
+              {/* Cliente: atalho para o painel com agendamentos e consultas */}
+              {user.role === 'client' && (
+                <button
+                  onClick={onOpenMyConsultations}
+                  title="Minhas consultas"
+                  className="flex items-center gap-2 bg-[#141829] hover:bg-[#1c223a] border border-[#d4af37]/40 text-[#f3eed9] text-xs font-bold px-2.5 sm:px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-md"
+                >
+                  <CalendarDays className="w-4 h-4 text-[#d4af37]" />
+                  <span className="hidden sm:inline">Minhas consultas</span>
+                </button>
               )}
 
               {/* Se for oraculista: Botão de acesso à Página Completa do Oraculista */}

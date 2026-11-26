@@ -232,7 +232,7 @@ export default function App() {
   };
 
   // Abre o Meu Perfil lembrando de onde o usuário veio
-  const openProfile = (tab = 'data') => {
+  const openProfile = (tab = currentUser?.role === 'client' ? 'dashboard' : 'data') => {
     if (!currentUser) {
       setAuthModal({ open: true, mode: 'login' });
       return;
@@ -484,6 +484,14 @@ export default function App() {
         />
       )}
       {readerSummary && <ReaderCallSummaryModal summary={readerSummary} onClose={() => setReaderSummary(null)} />}
+      {/* Carteira & Recarga PIX (disponível em qualquer tela) */}
+      {walletModalOpen && (
+        <WalletModal
+          user={currentUser}
+          onClose={() => setWalletModalOpen(false)}
+          onBalanceUpdated={handleBalanceUpdated}
+        />
+      )}
     </>
   );
   const withOverlays = (page) => (
@@ -514,6 +522,7 @@ export default function App() {
         onUserUpdated={handleUserUpdated}
         onReaderUpdated={handleReaderUpdated}
         onStartConsultation={handleStartConsultation}
+        onOpenWallet={() => setWalletModalOpen(true)}
       />
     );
   }
@@ -582,6 +591,7 @@ export default function App() {
         onOpenAuth={(mode) => setAuthModal({ open: true, mode })}
         onLogout={handleLogout}
         onOpenWallet={() => setWalletModalOpen(true)}
+        onOpenMyConsultations={() => openProfile('dashboard')}
         onOpenReaderDashboard={() => setCurrentView('reader-dashboard')}
         onOpenAdmin={() => {
           if (currentUser?.role === 'admin') {
@@ -593,7 +603,7 @@ export default function App() {
         onOpenReaderRegister={() => setCurrentView('reader-register')}
         onOpenDailyCard={() => setDailyCardModalOpen(true)}
         onStatusChange={handleStatusChange}
-        onOpenProfile={() => openProfile('data')}
+        onOpenProfile={() => openProfile()}
       />
 
       {/* Hero Principal Minimalista com Cartas de Tarô */}
@@ -705,7 +715,7 @@ export default function App() {
           reader={scheduleReader}
           currentUser={currentUser}
           onClose={() => setScheduleReader(null)}
-          onViewAppointments={() => openProfile('appointments')}
+          onViewAppointments={() => openProfile('dashboard')}
         />
       )}
 
@@ -719,15 +729,6 @@ export default function App() {
             setAuthModal({ open: false, mode: 'login' });
             setCurrentView('reader-register');
           }}
-        />
-      )}
-
-      {/* 3. Carteira & Recarga PIX Instantânea */}
-      {walletModalOpen && (
-        <WalletModal
-          user={currentUser}
-          onClose={() => setWalletModalOpen(false)}
-          onBalanceUpdated={handleBalanceUpdated}
         />
       )}
 

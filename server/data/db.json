@@ -103,45 +103,7 @@
       "videoCallEnabled": true,
       "audioCallEnabled": true,
       "whatsappEnabled": true,
-      "featured": true,
-      "schedule": {
-        "timezone": "America/Sao_Paulo",
-        "weekly": {
-          "0": [],
-          "1": [
-            {
-              "start": "09:00",
-              "end": "18:00"
-            }
-          ],
-          "2": [
-            {
-              "start": "09:00",
-              "end": "18:00"
-            }
-          ],
-          "3": [
-            {
-              "start": "09:00",
-              "end": "18:00"
-            }
-          ],
-          "4": [
-            {
-              "start": "09:00",
-              "end": "18:00"
-            }
-          ],
-          "5": [
-            {
-              "start": "09:00",
-              "end": "18:00"
-            }
-          ],
-          "6": []
-        },
-        "blockedDates": []
-      }
+      "featured": true
     },
     {
       "id": "reader_2",
@@ -562,20 +524,20 @@
   ],
   "appointments": [
     {
-      "id": "appt_1795652943391_1ny7",
-      "status": "confirmed",
-      "createdAt": "2026-11-26T00:29:03.391Z",
+      "id": "appt_1795717359891_fayo",
+      "status": "cancelled",
+      "createdAt": "2026-11-26T18:22:39.891Z",
       "clientId": "usr_client_1",
       "clientName": "Camila Ribeiro",
       "readerId": "reader_1",
       "readerName": "Helena Siqueira",
       "readerAvatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
       "pricePerMinute": 3.2,
-      "type": "video",
-      "durationMinutes": 15,
-      "scheduledAt": "2026-11-26T11:00:00.000Z",
+      "type": "audio",
+      "durationMinutes": 30,
+      "scheduledAt": "2026-11-26T19:00:00.000Z",
       "notes": "",
-      "updatedAt": "2026-11-26T00:29:47.502Z"
+      "updatedAt": "2026-11-26T18:41:24.438Z"
     }
   ]
 }

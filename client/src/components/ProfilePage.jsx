@@ -19,6 +19,7 @@ import {
 import { api } from '../services/api';
 import { getSocket } from '../services/socket';
 import ScheduleEditor from './ScheduleEditor';
+import ClientDashboard from './ClientDashboard';
 import {
   TYPE_LABEL,
   STATUS_LABEL,
@@ -84,9 +85,12 @@ export default function ProfilePage({
   onBack,
   onUserUpdated,
   onReaderUpdated,
-  onStartConsultation
+  onStartConsultation,
+  onOpenWallet
 }) {
-  const [tab, setTab] = useState(initialTab);
+  // O Painel só existe para clientes; os demais perfis abrem em "Meus dados"
+  const [tab, setTab] = useState(initialTab === 'dashboard' && user.role !== 'client' ? 'data' : initialTab);
+  const isClient = user.role === 'client';
   const hasAppointments = user.role !== 'admin';
   const hasSchedule = user.role === 'reader' && !!readerProfile;
 
@@ -368,6 +372,18 @@ export default function ProfilePage({
         {/* Conteúdo com abas */}
         <section>
           <div className="flex gap-1 sm:gap-2 mb-5 border-b border-[#d4af37]/15 overflow-x-auto whitespace-nowrap">
+            {isClient && (
+              <button
+                onClick={() => setTab('dashboard')}
+                className={`px-4 py-2.5 text-xs font-bold font-cinzel border-b-2 -mb-px transition-colors cursor-pointer ${
+                  tab === 'dashboard' ? 'border-[#d4af37] text-[#f3eed9]' : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5" /> Painel
+                </span>
+              </button>
+            )}
             <button
               onClick={() => setTab('data')}
               className={`px-4 py-2.5 text-xs font-bold font-cinzel border-b-2 -mb-px transition-colors cursor-pointer ${
@@ -406,6 +422,17 @@ export default function ProfilePage({
               </button>
             )}
           </div>
+
+          {tab === 'dashboard' && isClient && (
+            <ClientDashboard
+              user={user}
+              readers={readers}
+              onStartConsultation={onStartConsultation}
+              onGoTo={setTab}
+              onFindReaders={onBack}
+              onOpenWallet={onOpenWallet}
+            />
+          )}
 
           {tab === 'data' && (
             <form onSubmit={handleSave} className="bg-[#0b0d14] border border-[#d4af37]/25 rounded-3xl p-6 sm:p-8 space-y-5">

@@ -4,6 +4,7 @@ Consultas de tarô e outros oráculos ao vivo, **dentro do site** (computador ou
 
 - 📹 **Vídeo** e 📞 **áudio** ao vivo (WebRTC), com **mesa virtual de cartas** e chat durante a chamada
 - 📅 **Agendamento**: cada oraculista define os próprios horários; o cliente agenda só nos horários livres
+- 🧭 **Painel do cliente**: próxima consulta em destaque com botão **Entrar na consulta**, agendamentos, saldo e histórico
 - 📲 **Chamada com toque**: o oraculista recebe a chamada na tela (som, vibração e notificação) e atende ou recusa
 - 👥 Cadastro de oraculistas com **curadoria** (aprovação antes de atender)
 - 👑 Painel do administrador (métricas, taxa de 20%, aprovações e **agenda de todos os oraculistas**)
@@ -26,27 +27,6 @@ npm run dev
 
 Estrutura: `client/` (React + Vite + Tailwind) · `server/` (Express + Socket.io) · dados em `server/data/db.json`.
 
-### Contas de demonstração (senha `123456`)
-
-| Perfil | E-mail |
-| :-- | :-- |
-| Administrador | `admin@conexaotarot.com.br` |
-| Oraculista aprovada | `helena@conexaotarot.com.br` |
-| Oraculista em análise | `solange@conexaotarot.com.br` |
-| Cliente | `cliente@conexaotarot.com.br` |
-
-> Troque ou apague essas contas antes de publicar na internet.
-
-### Esqueci a senha
-
-Dentro da pasta `server`:
-
-```bash
-node scripts/reset-password.js                             # lista as contas
-node scripts/reset-password.js seu@email.com NovaSenha123  # define a nova senha
-```
-
----
 
 ## 🔐 Segurança e configuração
 
