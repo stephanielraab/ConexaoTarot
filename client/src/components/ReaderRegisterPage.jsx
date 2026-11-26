@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
-import { 
-  ArrowLeft, 
-  Sparkles, 
-  CheckCircle2, 
-  DollarSign, 
-  Phone, 
-  Mail, 
-  Lock, 
-  User, 
-  Award, 
-  Layers, 
-  Clock, 
+import {
+  ArrowLeft,
+  Sparkles,
+  DollarSign,
+  Phone,
+  Mail,
+  Lock,
+  User,
+  Award,
+  Layers,
+  Clock,
   ShieldCheck,
   Send
 } from 'lucide-react';
@@ -240,7 +239,7 @@ export default function ReaderRegisterPage({ onBack, onSuccess, onOpenLogin }) {
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  WhatsApp Oficial (com DDD)
+                  Celular de contato (com DDD)
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -347,7 +346,7 @@ export default function ReaderRegisterPage({ onBack, onSuccess, onOpenLogin }) {
               <div className="space-y-1 text-xs text-slate-300">
                 <p className="font-bold text-white font-cinzel">Processo Sagrado de Curadoria</p>
                 <p className="text-[11px] leading-relaxed text-slate-400">
-                  Ao submeter sua inscrição, você concorda que o cadastro passará por análise prévia e uma breve validação via WhatsApp. Assim que aprovado pelo Administrador, seu perfil entrará no ar e você receberá 80% do valor de todas as consultas realizadas.
+                  Ao submeter sua inscrição, você concorda que o cadastro passará por análise prévia e uma breve validação por contato telefônico. Assim que aprovado pelo Administrador, seu perfil entrará no ar e você receberá 80% do valor de todas as consultas realizadas.
                 </p>
               </div>
             </div>

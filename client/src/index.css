@@ -54,10 +54,14 @@
   z-index: 0;
 }
 
-/* Garantir que o conteúdo fique sobre o fundo da carta */
-.tarot-cards-bg > * {
-  position: relative;
-  z-index: 1;
+/* Garantir que o conteúdo fique sobre o fundo da carta.
+   IMPORTANTE: precisa ficar dentro de @layer base. Fora de uma camada, esta regra vencia as classes do
+   Tailwind (fixed, sticky, z-50...) e fazia os modais abrirem no fim da página e o menu perder o "sticky". */
+@layer base {
+  .tarot-cards-bg > * {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 .gold-gradient-text {
@@ -110,4 +114,18 @@
 
 .beacon-pulse {
   animation: pulseGold 2.5s infinite ease-in-out;
+}
+
+/* Espelha a miniatura da própria câmera (como nos apps de vídeo) */
+.mirror {
+  transform: scaleX(-1);
+}
+
+/* Entrada suave dos modais (a classe já era usada nas telas) */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
 }

@@ -3,7 +3,6 @@ import {
   X,
   Video,
   Phone,
-  MessageSquare,
   CalendarDays,
   Clock,
   CheckCircle2,
@@ -12,18 +11,13 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { TYPE_LABEL, formatDateTime, money } from '../utils/contact';
+import { summarizeSchedule } from '../utils/schedule';
 
 const TYPES = [
   { id: 'video', label: 'Vídeo', Icon: Video },
-  { id: 'audio', label: 'Áudio', Icon: Phone },
-  { id: 'whatsapp', label: 'WhatsApp', Icon: MessageSquare }
+  { id: 'audio', label: 'Áudio', Icon: Phone }
 ];
 const DURATIONS = [15, 30, 60];
-const FIRST_HOUR = 8;
-const LAST_HOUR = 22; // último horário às 21:30
-const DAYS_AHEAD = 14;
-const MIN_NOTICE_MS = 30 * 60000;
-
 const pad = (n) => String(n).padStart(2, '0');
 const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
@@ -34,61 +28,52 @@ export default function ScheduleModal({ reader, currentUser, onClose, onViewAppo
   const [selectedTime, setSelectedTime] = useState('');
   const [notes, setNotes] = useState('');
 
-  const [busy, setBusy] = useState([]);
-  const [loadingBusy, setLoadingBusy] = useState(true);
+  const [availability, setAvailability] = useState({ slots: [], timezone: '' });
+  const [loadingSlots, setLoadingSlots] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState(null);
 
-  const loadBusy = async () => {
+  // Horários livres vêm da agenda do próprio oraculista (já sem os reservados)
+  const loadSlots = async (minutes = duration) => {
     try {
-      setBusy(await api.getReaderBusySlots(reader.id));
+      setLoadingSlots(true);
+      setAvailability(await api.getReaderAvailability(reader.id, minutes));
     } catch {
-      setBusy([]);
+      setAvailability({ slots: [], timezone: '' });
     } finally {
-      setLoadingBusy(false);
+      setLoadingSlots(false);
     }
   };
 
   useEffect(() => {
-    loadBusy();
-  }, [reader.id]);
+    setSelectedTime('');
+    loadSlots(duration);
+  }, [reader.id, duration]);
 
-  const days = useMemo(() => {
-    const base = new Date();
-    base.setHours(0, 0, 0, 0);
-    return Array.from({ length: DAYS_AHEAD }, (_, i) => {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      return d;
-    });
-  }, []);
-
-  const slots = useMemo(() => {
-    const [y, m, d] = selectedDay.split('-').map(Number);
-    const now = Date.now();
-    const list = [];
-    for (let h = FIRST_HOUR; h < LAST_HOUR; h++) {
-      for (const min of [0, 30]) {
-        const start = new Date(y, m - 1, d, h, min, 0, 0);
-        const startMs = start.getTime();
-        const tooSoon = startMs < now + MIN_NOTICE_MS;
-        const taken = busy.some((b) => {
-          const bStart = new Date(b.scheduledAt).getTime();
-          return startMs < bStart + b.durationMinutes * 60000 && bStart < startMs + duration * 60000;
-        });
-        list.push({ label: `${pad(h)}:${pad(min)}`, start, disabled: tooSoon || taken, taken });
-      }
+  // Agrupa por dia no fuso de quem está agendando
+  const slotsByDay = useMemo(() => {
+    const map = new Map();
+    for (const iso of availability.slots) {
+      const d = new Date(iso);
+      const key = dayKey(d);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push({ iso, label: `${pad(d.getHours())}:${pad(d.getMinutes())}` });
     }
-    return list;
-  }, [selectedDay, busy, duration]);
+    return map;
+  }, [availability.slots]);
 
-  // Se a duração mudar e o horário escolhido deixar de caber, limpa a escolha
+  const dayKeys = useMemo(() => [...slotsByDay.keys()], [slotsByDay]);
+
+  // Seleciona automaticamente o primeiro dia com vagas
   useEffect(() => {
-    if (selectedTime && slots.find((s) => s.label === selectedTime)?.disabled) {
-      setSelectedTime('');
-    }
-  }, [slots, selectedTime]);
+    if (dayKeys.length && !slotsByDay.has(selectedDay)) setSelectedDay(dayKeys[0]);
+  }, [dayKeys]);
+
+  const slots = slotsByDay.get(selectedDay) || [];
+  const scheduleSummary = summarizeSchedule(reader.schedule);
+  const differentTz =
+    availability.timezone && availability.timezone !== Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const estimated = reader.pricePerMinute * duration;
   const selectedDayLabel = (() => {
@@ -98,7 +83,7 @@ export default function ScheduleModal({ reader, currentUser, onClose, onViewAppo
 
   const handleSubmit = async () => {
     setError('');
-    const slot = slots.find((s) => s.label === selectedTime);
+    const slot = slots.find((sl) => sl.label === selectedTime);
     if (!slot) {
       setError('Escolha o dia e o horário da sua consulta.');
       return;
@@ -110,13 +95,14 @@ export default function ScheduleModal({ reader, currentUser, onClose, onViewAppo
         readerId: reader.id,
         type,
         durationMinutes: duration,
-        scheduledAt: slot.start.toISOString(),
+        scheduledAt: slot.iso,
         notes: notes.trim()
       });
       setCreated(appt);
     } catch (err) {
       setError(err.message || 'Não foi possível agendar.');
-      loadBusy(); // atualiza horários caso alguém tenha reservado antes
+      setSelectedTime('');
+      loadSlots(duration); // atualiza caso alguém tenha reservado antes
     } finally {
       setSubmitting(false);
     }
@@ -209,7 +195,7 @@ export default function ScheduleModal({ reader, currentUser, onClose, onViewAppo
         {/* Tipo */}
         <div>
           <span className="block text-xs font-cinzel font-bold text-[#d4af37] mb-2">Como prefere ser atendido(a)?</span>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {TYPES.map(({ id, label, Icon }) => (
               <button
                 key={id}
@@ -250,76 +236,84 @@ export default function ScheduleModal({ reader, currentUser, onClose, onViewAppo
           </div>
         </div>
 
-        {/* Dia */}
-        <div>
-          <span className="block text-xs font-cinzel font-bold text-[#d4af37] mb-2">Escolha o dia</span>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {days.map((d) => {
-              const key = dayKey(d);
-              const active = key === selectedDay;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    setSelectedDay(key);
-                    setSelectedTime('');
-                  }}
-                  className={`shrink-0 w-14 py-2 rounded-xl border text-center transition-all cursor-pointer ${
-                    active
-                      ? 'bg-gradient-to-b from-[#d4af37] to-[#aa8420] border-[#d4af37] text-slate-950'
-                      : 'bg-[#10131f] border-[#d4af37]/25 text-slate-300 hover:border-[#d4af37]/60'
-                  }`}
-                >
-                  <span className="block text-[10px] uppercase font-semibold">
-                    {d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
-                  </span>
-                  <span className="block text-base font-bold font-cinzel leading-tight">{d.getDate()}</span>
-                  <span className="block text-[10px] uppercase">
-                    {d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}
-                  </span>
-                </button>
-              );
-            })}
+        {/* Dia e horário */}
+        {loadingSlots ? (
+          <p className="text-xs text-slate-400 flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-[#d4af37] animate-spin" /> Consultando a agenda de {reader.name.split(' ')[0]}...
+          </p>
+        ) : dayKeys.length === 0 ? (
+          <div className="p-4 rounded-xl bg-[#10131f] border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
+            Nenhum horário livre nos próximos 14 dias para {duration} minutos.
+            {duration > 15 && ' Tente uma duração menor.'}
+            {scheduleSummary.length > 0 && (
+              <span className="block mt-2 text-slate-400">
+                Agenda de atendimento: {scheduleSummary.map((g) => `${g.days} ${g.text}`).join(' · ')}
+              </span>
+            )}
           </div>
-        </div>
-
-        {/* Horário */}
-        <div>
-          <span className="flex items-center gap-1.5 text-xs font-cinzel font-bold text-[#d4af37] mb-2">
-            <Clock className="w-3.5 h-3.5" />
-            Escolha o horário
-          </span>
-          {loadingBusy ? (
-            <p className="text-xs text-slate-400 flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-[#d4af37] animate-spin" /> Consultando a agenda...
-            </p>
-          ) : (
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-44 overflow-y-auto pr-1">
-              {slots.map((slot) => (
-                <button
-                  key={slot.label}
-                  type="button"
-                  disabled={slot.disabled}
-                  onClick={() => setSelectedTime(slot.label)}
-                  title={slot.taken ? 'Horário já reservado' : undefined}
-                  className={`py-2 rounded-lg text-xs font-semibold border transition-all ${
-                    slot.disabled
-                      ? 'bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed line-through'
-                      : selectedTime === slot.label
-                      ? 'bg-[#2a2211] border-[#d4af37] text-[#f3eed9] cursor-pointer'
-                      : 'bg-[#10131f] border-[#d4af37]/25 text-slate-200 hover:border-[#d4af37] cursor-pointer'
-                  }`}
-                >
-                  {slot.label}
-                </button>
-              ))}
+        ) : (
+          <>
+            <div>
+              <span className="block text-xs font-cinzel font-bold text-[#d4af37] mb-2">Escolha o dia</span>
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {dayKeys.map((key) => {
+                  const [y, m, dd] = key.split('-').map(Number);
+                  const d = new Date(y, m - 1, dd);
+                  const active = key === selectedDay;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDay(key);
+                        setSelectedTime('');
+                      }}
+                      className={`shrink-0 w-14 py-2 rounded-xl border text-center transition-all cursor-pointer ${
+                        active
+                          ? 'bg-gradient-to-b from-[#d4af37] to-[#aa8420] border-[#d4af37] text-slate-950'
+                          : 'bg-[#10131f] border-[#d4af37]/25 text-slate-300 hover:border-[#d4af37]/60'
+                      }`}
+                    >
+                      <span className="block text-[10px] uppercase font-semibold">
+                        {d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+                      </span>
+                      <span className="block text-base font-bold font-cinzel leading-tight">{d.getDate()}</span>
+                      <span className="block text-[10px] uppercase">
+                        {d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
-          {!loadingBusy && slots.every((s) => s.disabled) && (
-            <p className="text-[11px] text-amber-300/90 mt-2">Sem horários livres neste dia. Tente outro dia.</p>
-          )}
-        </div>
+
+            <div>
+              <span className="flex items-center gap-1.5 text-xs font-cinzel font-bold text-[#d4af37] mb-2">
+                <Clock className="w-3.5 h-3.5" />
+                Escolha o horário
+              </span>
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-44 overflow-y-auto pr-1">
+                {slots.map((slot) => (
+                  <button
+                    key={slot.iso}
+                    type="button"
+                    onClick={() => setSelectedTime(slot.label)}
+                    className={`py-2.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      selectedTime === slot.label
+                        ? 'bg-[#2a2211] border-[#d4af37] text-[#f3eed9]'
+                        : 'bg-[#10131f] border-[#d4af37]/25 text-slate-200 hover:border-[#d4af37]'
+                    }`}
+                  >
+                    {slot.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 mt-2">
+                {differentTz ? 'Horários exibidos no fuso do seu aparelho.' : 'Mostrando só os horários livres da agenda do oraculista.'}
+              </p>
+            </div>
+          </>
+        )}
 
         {/* Observações */}
         <div>
@@ -340,13 +334,13 @@ export default function ScheduleModal({ reader, currentUser, onClose, onViewAppo
           <span className="font-bold font-cinzel text-[#d4af37]">{money(estimated)}</span>
         </div>
         <p className="text-[11px] text-slate-500 -mt-3 text-center">
-          Nada é cobrado agora: o valor é debitado do seu saldo apenas ao final do atendimento.
+          Nada é cobrado agora. O atendimento acontece aqui no site, por vídeo ou áudio, e o valor é debitado do seu saldo só ao final.
         </p>
 
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={submitting || !selectedTime}
+          disabled={submitting || !selectedTime || loadingSlots}
           className="w-full py-3 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#aa8420] hover:from-[#e5c368] hover:to-[#c59b27] text-slate-950 font-bold font-cinzel text-xs shadow-lg active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <CalendarDays className="w-4 h-4" />

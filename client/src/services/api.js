@@ -1,9 +1,24 @@
 const API_BASE = '/api';
 
+// Todas as chamadas levam o cookie de sessão (HttpOnly: o JavaScript do site nunca enxerga o token).
+// Se o servidor disser que a sessão acabou (401), avisamos o App para pedir o login de novo.
+async function request(url, options = {}) {
+  const { silent401, ...init } = options;
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'same-origin', ...init });
+  } catch {
+    throw new Error('Não foi possível conectar ao servidor. Confira se ele está ligado (npm run dev) e a sua internet.');
+  }
+  if (res.status === 401 && !silent401) window.dispatchEvent(new Event('auth-expired'));
+  return res;
+}
+
 export const api = {
   // Autenticação
   login: async (email, password) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const res = await request(`${API_BASE}/auth/login`, {
+      silent401: true,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -14,7 +29,8 @@ export const api = {
   },
 
   register: async (payload) => {
-    const res = await fetch(`${API_BASE}/auth/register`, {
+    const res = await request(`${API_BASE}/auth/register`, {
+      silent401: true,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -24,15 +40,22 @@ export const api = {
     return data;
   },
 
-  getMe: async (userId) => {
-    const res = await fetch(`${API_BASE}/auth/me/${userId}`);
+  // Quem está logado agora (valida o cookie de sessão)
+  getMe: async () => {
+    const res = await request(`${API_BASE}/auth/me`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao carregar usuário');
     return data;
   },
 
+  logout: async () => {
+    try {
+      await request(`${API_BASE}/auth/logout`, { method: 'POST', silent401: true });
+    } catch { /* sem rede: o cookie expira sozinho */ }
+  },
+
   updateUser: async (userId, updates) => {
-    const res = await fetch(`${API_BASE}/users/${userId}`, {
+    const res = await request(`${API_BASE}/users/${userId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
@@ -49,19 +72,19 @@ export const api = {
     if (filters.status && filters.status !== 'all') params.append('status', filters.status);
     if (filters.search) params.append('search', filters.search);
 
-    const res = await fetch(`${API_BASE}/readers?${params.toString()}`);
+    const res = await request(`${API_BASE}/readers?${params.toString()}`);
     if (!res.ok) throw new Error('Erro ao listar oraculistas');
     return res.json();
   },
 
   getReader: async (id) => {
-    const res = await fetch(`${API_BASE}/readers/${id}`);
+    const res = await request(`${API_BASE}/readers/${id}`);
     if (!res.ok) throw new Error('Oraculista não encontrado');
     return res.json();
   },
 
   updateReaderStatus: async (id, status) => {
-    const res = await fetch(`${API_BASE}/readers/${id}/status`, {
+    const res = await request(`${API_BASE}/readers/${id}/status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
@@ -71,7 +94,7 @@ export const api = {
   },
 
   updateReaderProfile: async (id, updates) => {
-    const res = await fetch(`${API_BASE}/readers/${id}`, {
+    const res = await request(`${API_BASE}/readers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
@@ -82,7 +105,7 @@ export const api = {
 
   // Atendimentos e Consultas
   startConsultation: async (clientId, readerId, type, appointmentId = null) => {
-    const res = await fetch(`${API_BASE}/consultations/start`, {
+    const res = await request(`${API_BASE}/consultations/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId, readerId, type, appointmentId })
@@ -92,11 +115,42 @@ export const api = {
     return data;
   },
 
-  endConsultation: async (consultationId, durationMinutes, notes = '') => {
-    const res = await fetch(`${API_BASE}/consultations/${consultationId}/end`, {
+  acceptConsultation: async (consultationId, userId) => {
+    const res = await request(`${API_BASE}/consultations/${consultationId}/accept`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ durationMinutes, notes })
+      body: JSON.stringify({ userId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Não foi possível atender a chamada');
+    return data;
+  },
+
+  // Recusa (oraculista) ou cancela (cliente) uma chamada que ainda está tocando
+  cancelConsultation: async (consultationId, userId) => {
+    const res = await request(`${API_BASE}/consultations/${consultationId}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    });
+    return res.json().catch(() => ({}));
+  },
+
+  getIceServers: async () => {
+    try {
+      const res = await request(`${API_BASE}/ice-servers`);
+      if (!res.ok) throw new Error();
+      return await res.json();
+    } catch {
+      return [{ urls: 'stun:stun.l.google.com:19302' }];
+    }
+  },
+
+  endConsultation: async (consultationId) => {
+    const res = await request(`${API_BASE}/consultations/${consultationId}/end`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao finalizar atendimento');
@@ -104,7 +158,7 @@ export const api = {
   },
 
   reviewConsultation: async (consultationId, rating, review) => {
-    const res = await fetch(`${API_BASE}/consultations/${consultationId}/review`, {
+    const res = await request(`${API_BASE}/consultations/${consultationId}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rating, review })
@@ -113,19 +167,20 @@ export const api = {
   },
 
   getConsultations: async (userId, role) => {
-    const res = await fetch(`${API_BASE}/consultations?userId=${userId}&role=${role}`);
+    const res = await request(`${API_BASE}/consultations?userId=${userId}&role=${role}`);
     return res.json();
   },
 
   // Agendamentos
-  getReaderBusySlots: async (readerId) => {
-    const res = await fetch(`${API_BASE}/readers/${readerId}/busy`);
-    if (!res.ok) throw new Error('Erro ao carregar horários');
-    return res.json();
+  getReaderAvailability: async (readerId, duration) => {
+    const res = await request(`${API_BASE}/readers/${readerId}/availability?duration=${duration}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao carregar horários');
+    return data; // { timezone, duration, slots: [ISO...] }
   },
 
   createAppointment: async (payload) => {
-    const res = await fetch(`${API_BASE}/appointments`, {
+    const res = await request(`${API_BASE}/appointments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -136,14 +191,14 @@ export const api = {
   },
 
   getAppointments: async (userId) => {
-    const res = await fetch(`${API_BASE}/appointments?userId=${encodeURIComponent(userId)}`);
+    const res = await request(`${API_BASE}/appointments?userId=${encodeURIComponent(userId)}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao carregar agendamentos');
     return data;
   },
 
   updateAppointment: async (id, userId, action) => {
-    const res = await fetch(`${API_BASE}/appointments/${id}`, {
+    const res = await request(`${API_BASE}/appointments/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, action })
@@ -155,17 +210,17 @@ export const api = {
 
   // Carteira e Recargas
   getPackages: async () => {
-    const res = await fetch(`${API_BASE}/wallet/packages`);
+    const res = await request(`${API_BASE}/wallet/packages`);
     return res.json();
   },
 
   getTransactions: async (userId) => {
-    const res = await fetch(`${API_BASE}/wallet/transactions/${userId}`);
+    const res = await request(`${API_BASE}/wallet/transactions/${userId}`);
     return res.json();
   },
 
   rechargeBalance: async (userId, amount, bonus = 0) => {
-    const res = await fetch(`${API_BASE}/wallet/recharge`, {
+    const res = await request(`${API_BASE}/wallet/recharge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, amount, bonus })
@@ -177,19 +232,19 @@ export const api = {
 
   // Admin & Curadoria de Oraculistas
   getPendingReaders: async () => {
-    const res = await fetch(`${API_BASE}/admin/pending-readers`);
+    const res = await request(`${API_BASE}/admin/pending-readers`);
     if (!res.ok) throw new Error('Erro ao buscar oraculistas pendentes');
     return res.json();
   },
 
   getAllReadersAdmin: async () => {
-    const res = await fetch(`${API_BASE}/admin/readers`);
+    const res = await request(`${API_BASE}/admin/readers`);
     if (!res.ok) throw new Error('Erro ao buscar todos os oraculistas');
     return res.json();
   },
 
   approveReader: async (id) => {
-    const res = await fetch(`${API_BASE}/admin/approve-reader/${id}`, {
+    const res = await request(`${API_BASE}/admin/approve-reader/${id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -199,7 +254,7 @@ export const api = {
   },
 
   rejectReader: async (id, reason) => {
-    const res = await fetch(`${API_BASE}/admin/reject-reader/${id}`, {
+    const res = await request(`${API_BASE}/admin/reject-reader/${id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason })
@@ -210,19 +265,19 @@ export const api = {
   },
 
   getAdminStats: async () => {
-    const res = await fetch(`${API_BASE}/admin/stats`);
+    const res = await request(`${API_BASE}/admin/stats`);
     if (!res.ok) throw new Error('Erro ao carregar estatísticas do admin');
     return res.json();
   },
 
   // Tarô
   getTarotDeck: async () => {
-    const res = await fetch(`${API_BASE}/tarot/deck`);
+    const res = await request(`${API_BASE}/tarot/deck`);
     return res.json();
   },
 
   drawCards: async (count = 3) => {
-    const res = await fetch(`${API_BASE}/tarot/draw?count=${count}`);
+    const res = await request(`${API_BASE}/tarot/draw?count=${count}`);
     return res.json();
   }
 };

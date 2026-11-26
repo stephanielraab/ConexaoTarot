@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Flame, RotateCw, ArrowRight } from 'lucide-react';
+import { X, Sparkles, RotateCw, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { tarotDeck } from '../data/tarotDeckClient';
 

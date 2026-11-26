@@ -1,26 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  ShieldAlert, 
-  CheckCircle2, 
-  XCircle, 
-  DollarSign, 
-  Users, 
-  Clock, 
-  Phone, 
-  Star, 
-  Percent, 
-  TrendingUp, 
-  Calendar, 
-  Video, 
+import {
+  ArrowLeft,
+  CheckCircle2,
+  DollarSign,
+  Clock,
+  Percent,
+  TrendingUp,
   MessageSquare,
-  Search,
-  Filter,
-  Check,
-  UserCircle
+  UserCircle,
+  CalendarDays
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
+import AdminAgendaPanel from './AdminAgendaPanel';
 
 export default function AdminDashboardPage({ 
   user, 
@@ -265,7 +257,24 @@ export default function AdminDashboardPage({
           >
             <span>Oraculistas Ativos ({allReaders.filter(r => r.approvalStatus === 'approved').length})</span>
           </button>
+
+          <button
+            onClick={() => setTab('agenda')}
+            className={`text-xs font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+              tab === 'agenda'
+                ? 'bg-[#241e12] border border-[#d4af37]/50 text-[#f3eed9] shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span>Agenda dos Oraculistas</span>
+          </button>
         </div>
+
+        {/* Tab: Agenda dos Oraculistas */}
+        {tab === 'agenda' && (
+          <AdminAgendaPanel readers={allReaders.filter(r => r.approvalStatus === 'approved')} />
+        )}
 
         {/* Tab 1: Fila de Curadoria */}
         {tab === 'pending' && (

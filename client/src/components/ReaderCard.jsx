@@ -3,7 +3,6 @@ import {
   Star, 
   Video, 
   Phone, 
-  MessageSquare, 
   Award,
   Info,
   CalendarDays
@@ -138,8 +137,8 @@ export default function ReaderCard({
           </div>
         </div>
 
-        {/* Action Buttons for Video, Audio, WhatsApp */}
-        <div className="grid grid-cols-3 gap-2">
+        {/* Atendimento imediato (vídeo ou áudio, dentro do site) */}
+        <div className="grid grid-cols-2 gap-2">
           
           {/* Video Call Button */}
           <button
@@ -169,21 +168,6 @@ export default function ReaderCard({
           >
             <Phone className="w-3.5 h-3.5 text-[#d4af37]" />
             <span className="text-[11px] font-cinzel">Ligação</span>
-          </button>
-
-          {/* WhatsApp Button */}
-          <button
-            onClick={(e) => { e.stopPropagation(); onStartConsultation(reader, 'whatsapp'); }}
-            disabled={!isAvailable}
-            className={`py-2 px-1.5 rounded-xl font-bold text-xs flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              isAvailable
-                ? 'bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-500/50 text-emerald-300 shadow-md active:scale-95'
-                : 'bg-slate-900/60 text-slate-500 border border-slate-800 cursor-not-allowed opacity-60'
-            }`}
-            title={isAvailable ? "Atendimento por WhatsApp" : "Oraculista indisponível"}
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[11px] font-cinzel">WhatsApp</span>
           </button>
 
         </div>

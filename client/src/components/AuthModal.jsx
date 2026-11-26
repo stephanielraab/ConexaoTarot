@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  Sparkles, 
-  User, 
-  Lock, 
-  Mail, 
-  Phone, 
-  ArrowRight
-} from 'lucide-react';
+import { X, User, Lock, Mail, Phone, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function AuthModal({ 
@@ -25,6 +17,7 @@ export default function AuthModal({
   const [phone, setPhone] = useState('');
 
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -125,6 +118,8 @@ export default function AuthModal({
                 <input
                   type="text"
                   required
+                  autoComplete="name"
+                  maxLength={80}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Seu nome"
@@ -142,6 +137,8 @@ export default function AuthModal({
               <input
                 type="email"
                 required
+                autoComplete="email"
+                inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seuemail@exemplo.com"
@@ -156,24 +153,38 @@ export default function AuthModal({
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                minLength={mode === 'register' ? 6 : undefined}
+                maxLength={72}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-[#141724] border border-[#d4af37]/30 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#d4af37]"
+                className="w-full bg-[#141724] border border-[#d4af37]/30 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#d4af37]"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+            {mode === 'register' && <p className="text-[10px] text-slate-500 mt-1">Mínimo de 6 caracteres.</p>}
           </div>
 
           {/* Telefone / WhatsApp */}
           {mode === 'register' && (
             <div>
-              <label className="block text-xs text-slate-300 mb-1">WhatsApp (opcional)</label>
+              <label className="block text-xs text-slate-300 mb-1">Celular com DDD (opcional)</label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="11999998888"

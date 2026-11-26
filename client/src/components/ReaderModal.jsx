@@ -1,10 +1,10 @@
+import { summarizeSchedule } from '../utils/schedule';
 import React from 'react';
 import { 
   X, 
   Star, 
   Video, 
   Phone, 
-  MessageSquare, 
   Award, 
   ShieldCheck, 
   Clock,
@@ -105,6 +105,22 @@ export default function ReaderModal({
             </p>
           </div>
 
+          {/* Horários de atendimento agendado */}
+          {summarizeSchedule(reader.schedule).length > 0 && (
+            <div>
+              <h4 className="text-xs font-bold font-cinzel text-[#d4af37] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" /> Horários para agendar
+              </h4>
+              <ul className="text-xs sm:text-sm text-slate-300 space-y-0.5">
+                {summarizeSchedule(reader.schedule).map((g) => (
+                  <li key={g.days}>
+                    <strong className="text-[#f3eed9]">{g.days}</strong> · {g.text}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Oracles */}
           <div>
             <h4 className="text-xs font-bold font-cinzel text-[#d4af37] uppercase tracking-wider mb-2">
@@ -149,7 +165,7 @@ export default function ReaderModal({
             </button>
             <p className="text-[11px] text-slate-500 text-center mb-3">Ou comece agora, se o oraculista estiver online:</p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => { onClose(); onStartConsultation(reader, 'video'); }}
                 disabled={!isAvailable}
@@ -174,19 +190,6 @@ export default function ReaderModal({
               >
                 <Phone className="w-4 h-4 text-[#d4af37]" />
                 Ligação de Áudio
-              </button>
-
-              <button
-                onClick={() => { onClose(); onStartConsultation(reader, 'whatsapp'); }}
-                disabled={!isAvailable}
-                className={`py-3 px-3 rounded-xl font-bold font-cinzel text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                  isAvailable 
-                    ? 'bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-500/60 text-emerald-300 shadow-md active:scale-95' 
-                    : 'bg-slate-900 text-slate-500 cursor-not-allowed opacity-60'
-                }`}
-              >
-                <MessageSquare className="w-4 h-4 text-emerald-400" />
-                WhatsApp
               </button>
             </div>
           </div>

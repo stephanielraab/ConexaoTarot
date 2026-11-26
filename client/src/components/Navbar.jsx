@@ -1,13 +1,5 @@
 import React from 'react';
-import { 
-  Sparkles, 
-  Wallet, 
-  LogOut, 
-  Flame,
-  LayoutDashboard,
-  Compass,
-  Layers
-} from 'lucide-react';
+import { Sparkles, Wallet, LogOut, Flame, LayoutDashboard, Compass } from 'lucide-react';
 
 export default function Navbar({ 
   user, 
@@ -23,7 +15,7 @@ export default function Navbar({
 }) {
   return (
     <header className="sticky top-0 z-40 bg-[#08090e]/95 backdrop-blur-md border-b border-[#d4af37]/20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2">
         
         {/* Logo Minimalista de Tarô */}
         <div 
@@ -31,17 +23,17 @@ export default function Navbar({
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
           {/* Ícone de Carta de Tarô Minimalista */}
-          <div className="w-10 h-12 rounded-lg bg-[#10131f] border border-[#d4af37]/40 p-1 shadow-md flex flex-col items-center justify-center group-hover:border-[#d4af37] transition-all relative overflow-hidden">
+          <div className="w-9 h-11 sm:w-10 sm:h-12 shrink-0 rounded-lg bg-[#10131f] border border-[#d4af37]/40 p-1 shadow-md flex flex-col items-center justify-center group-hover:border-[#d4af37] transition-all relative overflow-hidden">
             <div className="w-full h-full border border-[#d4af37]/25 rounded flex items-center justify-center">
               <span className="text-xs text-[#d4af37] font-serif">✦</span>
             </div>
           </div>
 
           <div>
-            <span className="text-xl font-bold font-cinzel tracking-wider text-[#f3eed9] block group-hover:text-[#d4af37] transition-colors">
+            <span className="text-base sm:text-xl font-bold font-cinzel tracking-wider text-[#f3eed9] block group-hover:text-[#d4af37] transition-colors">
               Conexão Tarot
             </span>
-            <span className="text-[9px] text-[#d4af37]/80 tracking-widest uppercase font-semibold">
+            <span className="hidden sm:block text-[9px] text-[#d4af37]/80 tracking-widest uppercase font-semibold">
               Tarô Online & Orientação Espiritual
             </span>
           </div>
@@ -75,14 +67,14 @@ export default function Navbar({
         </nav>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3">
               
               {/* Se for cliente: Mostra saldo e botão de recarga */}
               {user.role === 'client' && (
-                <div className="flex items-center gap-2.5 bg-[#10131f] border border-[#d4af37]/30 px-3.5 py-1.5 rounded-xl shadow-inner">
-                  <Wallet className="w-4 h-4 text-[#d4af37]" />
+                <div className="flex items-center gap-1.5 sm:gap-2.5 bg-[#10131f] border border-[#d4af37]/30 px-2 sm:px-3.5 py-1.5 rounded-xl shadow-inner">
+                  <Wallet className="hidden sm:block w-4 h-4 text-[#d4af37]" />
                   <div className="text-left">
                     <p className="text-[9px] uppercase tracking-wider text-slate-400 leading-none">Saldo</p>
                     <p className="text-sm font-bold text-[#f3eed9] font-cinzel">
@@ -93,7 +85,8 @@ export default function Navbar({
                     onClick={onOpenWallet}
                     className="ml-1 bg-gradient-to-r from-[#d4af37] to-[#aa8420] hover:from-[#e5c368] hover:to-[#c59b27] text-slate-950 font-bold text-xs px-2.5 py-1 rounded-lg transition-all shadow-md active:scale-95 cursor-pointer"
                   >
-                    + Créditos
+                    <span className="hidden sm:inline">+ Créditos</span>
+                    <span className="sm:hidden">+</span>
                   </button>
                 </div>
               )}
@@ -102,10 +95,10 @@ export default function Navbar({
               {user.role === 'reader' && (
                 <button
                   onClick={onOpenReaderDashboard}
-                  className="flex items-center gap-2 bg-[#141829] hover:bg-[#1c223a] border border-[#d4af37]/40 text-[#f3eed9] text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-md"
+                  className="flex items-center gap-2 bg-[#141829] hover:bg-[#1c223a] border border-[#d4af37]/40 text-[#f3eed9] text-xs font-bold px-2.5 sm:px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-md"
                 >
                   <LayoutDashboard className="w-4 h-4 text-[#d4af37]" />
-                  <span>Painel do Oraculista</span>
+                  <span className="hidden sm:inline">Painel do Oraculista</span>
                 </button>
               )}
 
@@ -113,10 +106,10 @@ export default function Navbar({
               {user.role === 'admin' && (
                 <button
                   onClick={onOpenAdmin}
-                  className="flex items-center gap-2 bg-[#141829] hover:bg-[#1c223a] border border-[#d4af37]/40 text-[#f3eed9] text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-md"
+                  className="flex items-center gap-2 bg-[#141829] hover:bg-[#1c223a] border border-[#d4af37]/40 text-[#f3eed9] text-xs font-bold px-2.5 sm:px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-md"
                 >
                   <Compass className="w-4 h-4 text-[#d4af37]" />
-                  <span>Gestão Central</span>
+                  <span className="hidden sm:inline">Gestão Central</span>
                 </button>
               )}
 
@@ -168,6 +161,14 @@ export default function Navbar({
         </div>
 
       </div>
+
+      {/* Atalhos no celular: a navegação do topo só aparece em telas maiores */}
+      <nav className="md:hidden border-t border-[#d4af37]/10 px-4 py-2 flex items-center gap-5 overflow-x-auto whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+        <a href="#oraculistas" className="hover:text-[#d4af37]">Tarólogos</a>
+        <button onClick={onOpenDailyCard} className="hover:text-[#d4af37] cursor-pointer">Carta do Dia</button>
+        <a href="#como-funciona" className="hover:text-[#d4af37]">Como Funciona</a>
+        <button onClick={onOpenReaderRegister} className="text-slate-400 hover:text-[#d4af37] cursor-pointer">Seja um Tarólogo</button>
+      </nav>
     </header>
   );
 }

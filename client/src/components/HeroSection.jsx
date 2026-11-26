@@ -224,8 +224,8 @@ export default function HeroSection({ onOpenDailyCard, onExploreReaders }) {
               <MessageSquare className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <p className="text-xs font-bold text-[#f3eed9] font-cinzel uppercase tracking-wider">WhatsApp Oficial</p>
-              <p className="text-[11px] text-slate-400">Atendimento prático e seguro no app</p>
+              <p className="text-xs font-bold text-[#f3eed9] font-cinzel uppercase tracking-wider">No Celular ou no PC</p>
+              <p className="text-[11px] text-slate-400">Atendimento direto pelo site, de qualquer lugar</p>
             </div>
           </div>
         </div>

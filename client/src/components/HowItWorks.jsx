@@ -89,7 +89,7 @@ export default function HowItWorks({ onOpenAuth, onOpenWallet }) {
               </div>
               <h3 className="text-sm font-bold font-cinzel text-[#f3eed9] mb-2">Inicie a Consulta</h3>
               <p className="text-xs text-slate-400 font-light leading-relaxed">
-                Atendimento por Vídeo Chamada, Ligação ou WhatsApp Direto. Cobrança transparente por minuto.
+                Atendimento por Vídeo Chamada ou Ligação, direto no site (celular ou computador). Cobrança transparente por minuto. Prefere hora marcada? É só agendar.
               </p>
             </div>
             <div className="mt-4 pt-4 border-t border-[#d4af37]/15 text-[11px] text-[#d4af37] font-semibold flex items-center gap-1.5">

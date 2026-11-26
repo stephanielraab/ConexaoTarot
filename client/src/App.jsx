@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import FilterBar from './components/FilterBar';
@@ -13,12 +13,14 @@ import AdminDashboardPage from './components/AdminDashboardPage';
 import ReaderRegisterPage from './components/ReaderRegisterPage';
 import ProfilePage from './components/ProfilePage';
 import ScheduleModal from './components/ScheduleModal';
+import IncomingCallModal from './components/IncomingCallModal';
+import ReaderCallSummaryModal from './components/ReaderCallSummaryModal';
 import DailyCardModal from './components/DailyCardModal';
 import HowItWorks from './components/HowItWorks';
 import Footer from './components/Footer';
 
 import { api } from './services/api';
-import { getSocket } from './services/socket';
+import { getSocket, reconnectSocket } from './services/socket';
 import { Sparkles, AlertCircle } from 'lucide-react';
 
 export default function App() {
@@ -61,6 +63,10 @@ export default function App() {
   
   // Resumo pós-consulta
   const [summaryData, setSummaryData] = useState(null);
+  const [readerSummary, setReaderSummary] = useState(null);
+
+  // Chamada que está tocando para o oraculista
+  const [incomingCall, setIncomingCall] = useState(null);
 
   const socket = getSocket();
 
@@ -69,17 +75,98 @@ export default function App() {
     loadReaders();
 
     // Ouvir atualizações de status dos oraculistas em tempo real
-    socket.on('reader-status-updated', ({ readerId, status }) => {
-      setReaders(prev => prev.map(r => r.id === readerId ? { ...r, status } : r));
-      if (readerProfile && readerProfile.id === readerId) {
-        setReaderProfile(prev => ({ ...prev, status }));
-      }
-    });
+    const onStatus = ({ readerId, status }) => {
+      setReaders(prev => prev.map(r => r.id === readerId ? { ...r, status, online: status !== 'offline' } : r));
+      setReaderProfile(prev => (prev && prev.id === readerId ? { ...prev, status } : prev));
+    };
+    socket.on('reader-status-updated', onStatus);
 
     return () => {
-      socket.off('reader-status-updated');
+      socket.off('reader-status-updated', onStatus);
     };
   }, []);
+
+  // O servidor reconhece o socket pelo cookie de sessão. Ao entrar ou sair da conta, reconectamos
+  // para a nova identidade valer (oraculista passa a aparecer "Online", chamadas passam a chegar).
+  const sessionIdRef = useRef(currentUser?.id ?? null);
+  useEffect(() => {
+    const id = currentUser?.id ?? null;
+    if (sessionIdRef.current !== id) {
+      sessionIdRef.current = id;
+      reconnectSocket();
+    }
+  }, [currentUser?.id]);
+
+  // Ao abrir o site: confirma com o servidor se a sessão guardada ainda vale e atualiza saldo/dados
+  useEffect(() => {
+    if (!localStorage.getItem('conexao_user')) return;
+    api.getMe()
+      .then(({ user, readerProfile: profile }) => {
+        setCurrentUser((prev) => (prev ? { ...prev, ...user } : prev));
+        localStorage.setItem('conexao_user', JSON.stringify(user));
+        if (profile) {
+          setReaderProfile(profile);
+          localStorage.setItem('conexao_reader', JSON.stringify(profile));
+        }
+      })
+      .catch(() => { /* 401: o evento auth-expired abaixo cuida de limpar a sessão */ });
+  }, []);
+
+  // Sessão expirou (ou foi encerrada em outro aparelho): volta para a tela de entrada
+  const userRef = useRef(currentUser);
+  userRef.current = currentUser;
+  useEffect(() => {
+    const onExpired = () => {
+      if (!userRef.current) return;
+      clearLocalSession();
+      setAuthModal({ open: true, mode: 'login' });
+      alert('Sua sessão expirou. Entre novamente para continuar.');
+    };
+    window.addEventListener('auth-expired', onExpired);
+    return () => window.removeEventListener('auth-expired', onExpired);
+  }, []);
+
+  // Oraculista: chamada recebida (toca em qualquer tela do site)
+  useEffect(() => {
+    if (currentUser?.role !== 'reader') return undefined;
+    const onIncoming = (call) => {
+      setIncomingCall(call);
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          const n = new Notification(`Chamada de ${call.clientName}`, {
+            body: 'Toque para atender no site Conexão Tarot',
+            tag: call.consultationId,
+            requireInteraction: true
+          });
+          n.onclick = () => { window.focus(); n.close(); };
+        } catch { /* notificação indisponível */ }
+      }
+    };
+    const onClosed = ({ consultationId }) =>
+      setIncomingCall(prev => (prev && prev.consultationId === consultationId ? null : prev));
+    socket.on('incoming-call', onIncoming);
+    socket.on('incoming-call-closed', onClosed);
+    return () => {
+      socket.off('incoming-call', onIncoming);
+      socket.off('incoming-call-closed', onClosed);
+    };
+  }, [currentUser?.role, currentUser?.id]);
+
+  // Oraculista disponível: mantém a tela do celular acesa para não perder chamadas
+  useEffect(() => {
+    if (currentUser?.role !== 'reader' || readerProfile?.status !== 'available') return undefined;
+    let lock = null;
+    const request = async () => {
+      try { if ('wakeLock' in navigator) lock = await navigator.wakeLock.request('screen'); } catch { /* sem suporte */ }
+    };
+    request();
+    const onVisible = () => { if (document.visibilityState === 'visible') request(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      lock?.release?.().catch(() => {});
+    };
+  }, [currentUser?.role, readerProfile?.status]);
 
   // Atalho discreto via hash URL (#admin)
   useEffect(() => {
@@ -128,13 +215,20 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const clearLocalSession = () => {
     setCurrentUser(null);
     setReaderProfile(null);
+    setActiveCall(null);
+    setIncomingCall(null);
     localStorage.removeItem('conexao_user');
     localStorage.removeItem('conexao_reader');
     setCurrentView('home');
     window.location.hash = '';
+  };
+
+  const handleLogout = async () => {
+    await api.logout(); // o servidor apaga o cookie de sessão
+    clearLocalSession();
   };
 
   // Abre o Meu Perfil lembrando de onde o usuário veio
@@ -191,7 +285,7 @@ export default function App() {
     }
   };
 
-  // Iniciar Atendimento (Vídeo, Áudio ou WhatsApp)
+  // Iniciar Atendimento (vídeo ou áudio, dentro do site)
   const handleStartConsultation = async (reader, type, appointmentId = null) => {
     // 1. Verificar se usuário está autenticado
     if (!currentUser) {
@@ -199,9 +293,9 @@ export default function App() {
       return;
     }
 
-    // 2. Se o usuário for o próprio oraculista
-    if (currentUser.role === 'reader' && readerProfile?.id === reader.id) {
-      alert('Você não pode iniciar um atendimento consigo mesmo.');
+    // 2. Só consulentes iniciam atendimentos
+    if (currentUser.role !== 'client') {
+      alert('Para consultar, entre com uma conta de consulente.');
       return;
     }
 
@@ -220,55 +314,114 @@ export default function App() {
     try {
       const data = await api.startConsultation(currentUser.id, reader.id, type, appointmentId);
 
-      // Se for atendimento por WhatsApp
-      if (type === 'whatsapp') {
-        if (data.whatsappLink) {
-          window.open(data.whatsappLink, '_blank');
-          alert(`Atendimento com ${reader.name} iniciado! O WhatsApp do oraculista foi aberto em uma nova aba com os dados do seu atendimento.`);
-        }
-        return;
-      }
-
-      // Se for Vídeo Chamada ou Ligação de Áudio
+      // A chamada toca para o oraculista; esta tela mostra "Chamando…" até ele atender
       setActiveCall({
-        consultation: data.consultation,
+        consultation: {
+          ...data.consultation,
+          maxMinutes: data.maxMinutes,
+          serverNow: data.serverNow,
+          ringTimeoutMs: data.ringTimeoutMs
+        },
         reader,
-        maxMinutes: data.maxMinutes,
-        type
+        peer: null
       });
-
     } catch (err) {
       alert(err.message || 'Erro ao iniciar atendimento');
+      loadReaders();
     }
   };
 
-  // Encerramento da Consulta
-  const handleEndCall = async (durationMinutes) => {
-    if (!activeCall) return;
+  // Oraculista atende / recusa a chamada que está tocando
+  const handleAcceptCall = async () => {
+    const call = incomingCall;
+    if (!call) return;
+    try {
+      const res = await api.acceptConsultation(call.consultationId, currentUser.id);
+      setIncomingCall(null);
+      setActiveCall({
+        consultation: {
+          ...res.consultation,
+          type: call.type,
+          maxMinutes: call.maxMinutes,
+          serverNow: res.serverNow
+        },
+        reader: readerProfile,
+        peer: res.client
+      });
+    } catch (err) {
+      setIncomingCall(null);
+      alert(err.message || 'Não foi possível atender esta chamada.');
+    }
+  };
+
+  const handleDeclineCall = async () => {
+    const call = incomingCall;
+    setIncomingCall(null);
+    if (call) await api.cancelConsultation(call.consultationId, currentUser.id);
+  };
+
+  // Cliente desiste enquanto a chamada ainda toca (nada é cobrado)
+  const handleCancelRinging = async () => {
+    const call = activeCall;
+    setActiveCall(null);
+    if (call) await api.cancelConsultation(call.consultation.id, currentUser.id);
+    loadReaders();
+  };
+
+  // Oraculista recusou ou não atendeu a tempo
+  const handleCallFailed = (reason) => {
+    const name = activeCall?.reader?.name || 'O oraculista';
+    setActiveCall(null);
+    alert(
+      reason === 'declined'
+        ? `${name} não pôde atender agora. Você não foi cobrado(a). Que tal agendar um horário?`
+        : `${name} não respondeu a tempo. Você não foi cobrado(a). Tente novamente ou agende um horário.`
+    );
+    loadReaders();
+  };
+
+  // Encerramento da consulta (os dois lados chamam; o servidor cobra uma única vez)
+  const handleEndCall = async () => {
+    const call = activeCall;
+    if (!call) return;
+    setActiveCall(null);
 
     try {
-      const res = await api.endConsultation(activeCall.consultation.id, durationMinutes);
-      
-      // Atualizar saldo do cliente localmente
+      const res = await api.endConsultation(call.consultation.id);
+
       if (currentUser.role === 'client') {
         const updated = { ...currentUser, balance: res.remainingBalance };
         setCurrentUser(updated);
         localStorage.setItem('conexao_user', JSON.stringify(updated));
+
+        if (res.cost > 0) {
+          setSummaryData({
+            consultationId: call.consultation.id,
+            durationMinutes: res.minutes,
+            cost: res.cost,
+            readerName: call.reader.name
+          });
+        } else {
+          alert('A consulta não chegou a conectar, então nada foi cobrado.');
+        }
+      } else {
+        setReaderSummary({
+          minutes: res.minutes,
+          cost: res.cost,
+          readerEarnings: res.readerEarnings,
+          clientName: call.peer?.name || 'cliente'
+        });
+        try {
+          const me = await api.getMe();
+          const merged = { ...currentUser, ...me.user };
+          setCurrentUser(merged);
+          localStorage.setItem('conexao_user', JSON.stringify(merged));
+        } catch { /* saldo atualiza no próximo login */ }
       }
 
-      // Salvar dados de resumo para avaliação
-      setSummaryData({
-        consultationId: activeCall.consultation.id,
-        durationMinutes: res.minutes,
-        cost: res.cost,
-        readerName: activeCall.reader.name
-      });
-
-      setActiveCall(null);
       loadReaders(); // Atualiza status do oraculista para disponível
     } catch (err) {
       console.error(err);
-      setActiveCall(null);
     }
   };
 
@@ -305,43 +458,69 @@ export default function App() {
       return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
     });
 
-  // RENDERIZAÇÃO: MEU PERFIL (dados da conta + agendamentos)
-  if (currentView === 'profile' && currentUser) {
-    return (
-      <>
-        <ProfilePage
-          user={currentUser}
-          readers={readers}
-          initialTab={profileTab}
-          onBack={() => {
-            setCurrentView(profileReturnView);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          onUserUpdated={handleUserUpdated}
-          onStartConsultation={handleStartConsultation}
+  // Camadas globais: aparecem em QUALQUER tela (chamada recebida, sala de atendimento, resumos)
+  const overlays = (
+    <>
+      {incomingCall && !activeCall && (
+        <IncomingCallModal call={incomingCall} onAccept={handleAcceptCall} onDecline={handleDeclineCall} />
+      )}
+      {activeCall && (
+        <CallRoom
+          key={activeCall.consultation.id}
+          consultation={activeCall.consultation}
+          reader={activeCall.reader}
+          peer={activeCall.peer}
+          currentUser={currentUser}
+          onEndCall={handleEndCall}
+          onCancelRinging={handleCancelRinging}
+          onCallFailed={handleCallFailed}
         />
-        {activeCall && (
-          <CallRoom
-            consultation={activeCall.consultation}
-            reader={activeCall.reader}
-            currentUser={currentUser}
-            onEndCall={handleEndCall}
-          />
-        )}
-        {summaryData && (
-          <ConsultationSummaryModal
-            summaryData={summaryData}
-            onClose={() => setSummaryData(null)}
-            onSubmitReview={handleReviewSubmit}
-          />
-        )}
-      </>
+      )}
+      {summaryData && (
+        <ConsultationSummaryModal
+          summaryData={summaryData}
+          onClose={() => setSummaryData(null)}
+          onSubmitReview={handleReviewSubmit}
+        />
+      )}
+      {readerSummary && <ReaderCallSummaryModal summary={readerSummary} onClose={() => setReaderSummary(null)} />}
+    </>
+  );
+  const withOverlays = (page) => (
+    <>
+      {page}
+      {overlays}
+    </>
+  );
+
+  const handleReaderUpdated = (updated) => {
+    setReaderProfile(updated);
+    localStorage.setItem('conexao_reader', JSON.stringify(updated));
+    loadReaders();
+  };
+
+  // RENDERIZAÇÃO: MEU PERFIL (dados da conta, horários e agendamentos)
+  if (currentView === 'profile' && currentUser) {
+    return withOverlays(
+      <ProfilePage
+        user={currentUser}
+        readers={readers}
+        readerProfile={readerProfile}
+        initialTab={profileTab}
+        onBack={() => {
+          setCurrentView(profileReturnView);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onUserUpdated={handleUserUpdated}
+        onReaderUpdated={handleReaderUpdated}
+        onStartConsultation={handleStartConsultation}
+      />
     );
   }
 
   // RENDERIZAÇÃO: PÁGINA COMPLETA DO ORACULISTA
   if (currentView === 'reader-dashboard') {
-    return (
+    return withOverlays(
       <ReaderDashboardPage
         user={currentUser}
         readerProfile={readerProfile}
@@ -350,18 +529,14 @@ export default function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onOpenProfile={() => openProfile('data')}
-        onProfileUpdated={(updated) => {
-          setReaderProfile(updated);
-          localStorage.setItem('conexao_reader', JSON.stringify(updated));
-          loadReaders();
-        }}
+        onProfileUpdated={handleReaderUpdated}
       />
     );
   }
 
   // RENDERIZAÇÃO: PÁGINA COMPLETA DO ADMINISTRADOR (COMISSÃO 20% & CURADORIA)
   if (currentView === 'admin-dashboard') {
-    return (
+    return withOverlays(
       <AdminDashboardPage
         user={currentUser}
         onBack={() => {
@@ -377,14 +552,15 @@ export default function App() {
 
   // RENDERIZAÇÃO: PÁGINA COMPLETA DE CADASTRO/CANDIDATURA DE ORACULISTA
   if (currentView === 'reader-register') {
-    return (
+    return withOverlays(
       <ReaderRegisterPage
         onBack={() => {
           setCurrentView('home');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        onSuccess={() => {
-          setCurrentView('home');
+        onSuccess={(user, profile) => {
+          // O cadastro já deixa a pessoa logada: leva direto ao painel (que mostra "em análise")
+          handleAuthSuccess(user, profile);
           alert('Candidatura enviada com sucesso! Seu perfil está em curadoria pela nossa equipe.');
         }}
         onOpenLogin={() => {
@@ -396,7 +572,7 @@ export default function App() {
   }
 
   // RENDERIZAÇÃO: PORTAL PRINCIPAL (HOME)
-  return (
+  return withOverlays(
     <div className="min-h-screen tarot-cards-bg text-slate-100 flex flex-col font-sans selection:bg-[#d4af37]/30 selection:text-[#f3eed9]">
       
       {/* Navbar Superior */}
@@ -563,25 +739,6 @@ export default function App() {
             const el = document.getElementById('oraculistas');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           }}
-        />
-      )}
-
-      {/* 5. Sala de Chamada Ativa (Vídeo ou Ligação) */}
-      {activeCall && (
-        <CallRoom
-          consultation={activeCall.consultation}
-          reader={activeCall.reader}
-          currentUser={currentUser}
-          onEndCall={handleEndCall}
-        />
-      )}
-
-      {/* 6. Resumo & Avaliação pós-consulta */}
-      {summaryData && (
-        <ConsultationSummaryModal
-          summaryData={summaryData}
-          onClose={() => setSummaryData(null)}
-          onSubmitReview={handleReviewSubmit}
         />
       )}
 

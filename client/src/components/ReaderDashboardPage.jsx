@@ -1,26 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Sparkles, 
-  DollarSign, 
-  Clock, 
-  Calendar, 
-  Phone, 
-  Star, 
-  Save, 
-  CheckCircle2, 
-  Video, 
-  MessageSquare, 
-  Wallet, 
-  ArrowUpRight, 
-  ShieldCheck, 
-  UserCheck, 
-  AlertCircle,
+import {
+  ArrowLeft,
+  DollarSign,
+  Clock,
+  Calendar,
+  Phone,
+  Star,
+  Save,
+  CheckCircle2,
+  Video,
+  MessageSquare,
+  Wallet,
+  ArrowUpRight,
+  ShieldCheck,
   CreditCard,
-  History,
-  UserCircle
+  UserCircle,
+  CalendarDays
 } from 'lucide-react';
 import { api } from '../services/api';
+import ReaderReadinessCard from './ReaderReadinessCard';
+import AgendaPanel from './AgendaPanel';
+import { getSocket } from '../services/socket';
 
 export default function ReaderDashboardPage({ 
   user, 
@@ -50,6 +50,32 @@ export default function ReaderDashboardPage({
   const [saveSuccess, setSaveSuccess] = useState('');
 
   const isPending = readerProfile?.approvalStatus === 'pending' || !readerProfile?.isApproved;
+
+  // Aba atual do painel: 'panel' (visão geral) ou 'agenda'
+  const [view, setView] = useState('panel');
+  const [pendingAppts, setPendingAppts] = useState(0);
+
+  // Quantos pedidos de agendamento esperam resposta (selo na aba Agenda, atualiza em tempo real)
+  useEffect(() => {
+    if (isPending) return undefined;
+    const load = () =>
+      api
+        .getAppointments()
+        .then((list) =>
+          setPendingAppts(
+            list.filter((a) => a.status === 'pending' && Date.parse(a.scheduledAt) + a.durationMinutes * 60000 > Date.now()).length
+          )
+        )
+        .catch(() => {});
+    load();
+    const socket = getSocket();
+    socket.on('appointment-requested', load);
+    socket.on('appointment-updated', load);
+    return () => {
+      socket.off('appointment-requested', load);
+      socket.off('appointment-updated', load);
+    };
+  }, [isPending, view]);
 
   useEffect(() => {
     if (readerProfile?.id) {
@@ -218,12 +244,44 @@ export default function ReaderDashboardPage({
                   Inscrição Oracular em Fase de Curadoria
                 </h3>
                 <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-                  Seu cadastro foi recebido com reverência. Para assegurar a fidelidade e excelência sagrada dos atendimentos, nossa equipe realiza uma breve entrevista pelo seu WhatsApp cadastrado (<strong className="text-white">{whatsapp || readerProfile?.whatsapp}</strong>). Assim que seu perfil for aprovado pela gestão, ele passará a figurar na vitrine pública!
+                  Seu cadastro foi recebido com reverência. Para assegurar a fidelidade e excelência sagrada dos atendimentos, nossa equipe realiza uma breve entrevista pelo celular de contato cadastrado (<strong className="text-white">{whatsapp || readerProfile?.whatsapp}</strong>). Assim que seu perfil for aprovado pela gestão, ele passará a figurar na vitrine pública!
                 </p>
               </div>
             </div>
           </div>
         )}
+
+        {/* Abas: Painel / Agenda */}
+        {!isPending && (
+          <div className="flex gap-1 sm:gap-2 mb-8 border-b border-[#d4af37]/15 overflow-x-auto whitespace-nowrap">
+            <button
+              onClick={() => setView('panel')}
+              className={`px-4 py-2.5 text-xs font-bold font-cinzel border-b-2 -mb-px transition-colors cursor-pointer ${
+                view === 'panel' ? 'border-[#d4af37] text-[#f3eed9]' : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              Painel
+            </button>
+            <button
+              onClick={() => setView('agenda')}
+              className={`px-4 py-2.5 text-xs font-bold font-cinzel border-b-2 -mb-px transition-colors cursor-pointer flex items-center gap-1.5 ${
+                view === 'agenda' ? 'border-[#d4af37] text-[#f3eed9]' : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" /> Agenda
+              {pendingAppts > 0 && (
+                <span className="bg-[#d4af37] text-slate-950 rounded-full px-1.5 text-[10px] font-extrabold">{pendingAppts}</span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {!isPending && view === 'agenda' ? (
+          <AgendaPanel readerProfile={readerProfile} onReaderUpdated={onProfileUpdated} />
+        ) : (
+        <>
+        {/* Pronto para receber chamadas? (também no celular) */}
+        {!isPending && <ReaderReadinessCard status={readerProfile?.status} />}
 
         {/* Financial KPI Cards: Valores a Receber & Métricas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -316,7 +374,7 @@ export default function ReaderDashboardPage({
                     Agendamentos & Histórico de Atendimentos
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Registro de todas as consultas efetuadas por vídeo, áudio e WhatsApp
+                    Registro de todas as consultas efetuadas por vídeo e áudio
                   </p>
                 </div>
                 <span className="text-xs font-bold text-[#d4af37] bg-[#241e12] border border-[#d4af37]/30 px-3 py-1 rounded-full">
@@ -352,7 +410,7 @@ export default function ReaderDashboardPage({
                             <div className="flex items-center gap-2">
                               <h4 className="text-sm font-bold text-white">{c.clientName || 'Consulente'}</h4>
                               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-[#1f2840] text-slate-300">
-                                {c.type === 'video' ? 'Vídeo Chamada' : c.type === 'audio' ? 'Ligação' : 'WhatsApp'}
+                                {c.type === 'video' ? 'Vídeo Chamada' : c.type === 'audio' ? 'Ligação' : 'WhatsApp (antigo)'}
                               </span>
                             </div>
                             <p className="text-[11px] text-slate-400">
@@ -501,7 +559,7 @@ export default function ReaderDashboardPage({
                 {/* WhatsApp */}
                 <div>
                   <label className="block text-xs text-slate-300 mb-1">
-                    WhatsApp de Atendimento (com DDD)
+                    Celular de contato (com DDD)
                   </label>
                   <div className="relative">
                     <Phone className="w-4 h-4 text-[#d4af37] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -514,7 +572,7 @@ export default function ReaderDashboardPage({
                     />
                   </div>
                   <span className="text-[10px] text-slate-500 block mt-1">
-                    Utilizado para os clientes iniciarem consultas via WhatsApp
+                    Usado só pela curadoria e para avisos. Não aparece para clientes: os atendimentos acontecem pelo site.
                   </span>
                 </div>
 
@@ -565,7 +623,7 @@ export default function ReaderDashboardPage({
                 <span>Condições da Parceria Conexão Tarot</span>
               </div>
               <p className="text-slate-400 text-[11px] leading-relaxed">
-                Você recebe 80% do valor de todos os minutos consumidos em suas consultas. Os repasses são processados via PIX sem taxas abusivas. Mantenha seu WhatsApp sempre atualizado.
+                Você recebe 80% do valor de todos os minutos consumidos em suas consultas. Os repasses são processados via PIX sem taxas abusivas. Mantenha seu celular de contato sempre atualizado.
               </p>
             </div>
 
@@ -573,6 +631,8 @@ export default function ReaderDashboardPage({
 
         </div>
 
+        </>
+        )}
       </main>
 
     </div>

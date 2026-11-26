@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 export default function Footer({ onOpenAdmin }) {
   return (
@@ -50,7 +50,7 @@ export default function Footer({ onOpenAdmin }) {
             <ul className="space-y-2 text-xs">
               <li><span className="text-[#f3eed9] font-medium">📹 Vídeo Chamada:</span> Tiragem de cartas ao vivo na mesa virtual</li>
               <li><span className="text-[#f3eed9] font-medium">📞 Ligação de Áudio:</span> Conversa sigilosa por voz no navegador</li>
-              <li><span className="text-emerald-400 font-medium">💬 WhatsApp Oficial:</span> Atendimento flexível pelo mensageiro</li>
+              <li><span className="text-emerald-400 font-medium">📱 Pelo Celular:</span> Atenda e seja atendido de qualquer lugar, direto no navegador</li>
               <li><span className="text-[#d4af37] font-medium">⚡ PIX Automático:</span> Minutos liberados imediatamente</li>
             </ul>
           </div>

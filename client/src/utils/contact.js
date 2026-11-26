@@ -25,13 +25,6 @@ export const maskPhone = (v = '') => {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 };
 
-export const whatsappLink = (phone, text = '') => {
-  const d = onlyDigits(phone);
-  if (!d) return '';
-  const full = d.length <= 11 ? `55${d}` : d;
-  return `https://wa.me/${full}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
-};
-
 export const TYPE_LABEL = { video: 'Vídeo chamada', audio: 'Ligação de áudio', whatsapp: 'WhatsApp' };
 
 export const STATUS_LABEL = {

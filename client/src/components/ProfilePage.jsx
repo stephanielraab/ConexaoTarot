@@ -13,18 +13,18 @@ import {
   CalendarDays,
   Clock,
   Video,
-  MessageSquare,
   Upload,
   Sparkles
 } from 'lucide-react';
 import { api } from '../services/api';
+import { getSocket } from '../services/socket';
+import ScheduleEditor from './ScheduleEditor';
 import {
   TYPE_LABEL,
   STATUS_LABEL,
   formatDateTime,
   formatPhone,
   maskPhone,
-  whatsappLink,
   stripCountry,
   money
 } from '../utils/contact';
@@ -79,13 +79,16 @@ function fileToAvatar(file) {
 export default function ProfilePage({
   user,
   readers = [],
+  readerProfile = null,
   initialTab = 'data',
   onBack,
   onUserUpdated,
+  onReaderUpdated,
   onStartConsultation
 }) {
   const [tab, setTab] = useState(initialTab);
   const hasAppointments = user.role !== 'admin';
+  const hasSchedule = user.role === 'reader' && !!readerProfile;
 
   // ----- Dados -----
   const [name, setName] = useState(user.name || '');
@@ -142,10 +145,10 @@ export default function ProfilePage({
 
       const res = await api.updateUser(user.id, payload);
       onUserUpdated(res.user, res.readerProfile);
+      setSuccess(password ? 'Dados atualizados! Sua senha foi trocada e os outros aparelhos foram desconectados.' : 'Dados atualizados com sucesso!');
       setCurrentPassword('');
       setPassword('');
       setConfirmPassword('');
-      setSuccess('Dados atualizados com sucesso!');
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       setError(err.message || 'Erro ao salvar.');
@@ -175,6 +178,19 @@ export default function ProfilePage({
   useEffect(() => {
     if (tab === 'appointments' && hasAppointments) loadAppointments();
   }, [tab]);
+
+  // Novo pedido ou resposta de agendamento chegando em tempo real
+  useEffect(() => {
+    if (!hasAppointments) return;
+    const socket = getSocket();
+    const refresh = () => loadAppointments();
+    socket.on('appointment-requested', refresh);
+    socket.on('appointment-updated', refresh);
+    return () => {
+      socket.off('appointment-requested', refresh);
+      socket.off('appointment-updated', refresh);
+    };
+  }, [hasAppointments]);
 
   const act = async (appt, action) => {
     if (action === 'cancel' && !window.confirm('Deseja cancelar este agendamento?')) return;
@@ -206,9 +222,6 @@ export default function ProfilePage({
       now >= startMs - 10 * 60000 &&
       now <= startMs + a.durationMinutes * 60000;
     const reader = readers.find((r) => r.id === a.readerId);
-    const contactPhone = isReaderView ? a.clientPhone : a.readerWhatsapp;
-    const contactName = isReaderView ? a.clientName : a.readerName;
-    const waText = `Olá ${contactName}! Sobre nossa consulta de ${TYPE_LABEL[a.type].toLowerCase()} agendada na Conexão Tarot para ${when.full}.`;
 
     return (
       <div key={a.id} className="bg-[#0e101b] border border-[#d4af37]/25 rounded-2xl p-4 sm:p-5">
@@ -269,18 +282,6 @@ export default function ProfilePage({
             </button>
           )}
 
-          {a.status === 'confirmed' && contactPhone && (
-            <a
-              href={whatsappLink(contactPhone, waText)}
-              target="_blank"
-              rel="noreferrer"
-              className="px-3.5 py-2 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-900/90 transition-colors"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Falar no WhatsApp
-            </a>
-          )}
-
           {['pending', 'confirmed'].includes(a.status) && (
             <button
               disabled={busyId === a.id}
@@ -294,7 +295,17 @@ export default function ProfilePage({
 
         {a.status === 'pending' && !isReaderView && (
           <p className="text-[11px] text-slate-500 mt-3">
-            O contato por WhatsApp é liberado assim que o oraculista confirmar.
+            Você será avisado aqui assim que o oraculista confirmar.
+          </p>
+        )}
+        {a.status === 'confirmed' && !isReaderView && !canStart && (
+          <p className="text-[11px] text-slate-500 mt-3">
+            Confirmada! Volte aqui 10 minutos antes do horário: o botão <strong className="text-slate-300">Iniciar atendimento</strong> libera e a consulta acontece pelo site.
+          </p>
+        )}
+        {a.status === 'confirmed' && isReaderView && (
+          <p className="text-[11px] text-slate-500 mt-3">
+            No horário marcado o cliente vai chamar você pelo site. Deixe o site aberto (pode ser no celular) e com o status <strong className="text-slate-300">Online</strong>.
           </p>
         )}
       </div>
@@ -344,12 +355,10 @@ export default function ProfilePage({
             </a>
             {user.phone && (
               <a
-                href={whatsappLink(user.phone)}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-[#10131f] border border-[#d4af37]/15 hover:border-emerald-500/60 text-slate-200 transition-colors"
+                href={`tel:+55${stripCountry(user.phone)}`}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-[#10131f] border border-[#d4af37]/15 hover:border-[#d4af37]/60 text-slate-200 transition-colors"
               >
-                <Phone className="w-4 h-4 text-emerald-400 shrink-0" />
+                <Phone className="w-4 h-4 text-[#d4af37] shrink-0" />
                 {formatPhone(user.phone)}
               </a>
             )}
@@ -358,7 +367,7 @@ export default function ProfilePage({
 
         {/* Conteúdo com abas */}
         <section>
-          <div className="flex gap-2 mb-5 border-b border-[#d4af37]/15">
+          <div className="flex gap-1 sm:gap-2 mb-5 border-b border-[#d4af37]/15 overflow-x-auto whitespace-nowrap">
             <button
               onClick={() => setTab('data')}
               className={`px-4 py-2.5 text-xs font-bold font-cinzel border-b-2 -mb-px transition-colors cursor-pointer ${
@@ -369,6 +378,18 @@ export default function ProfilePage({
                 <User className="w-3.5 h-3.5" /> Meus dados
               </span>
             </button>
+            {hasSchedule && (
+              <button
+                onClick={() => setTab('schedule')}
+                className={`px-4 py-2.5 text-xs font-bold font-cinzel border-b-2 -mb-px transition-colors cursor-pointer ${
+                  tab === 'schedule' ? 'border-[#d4af37] text-[#f3eed9]' : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Meus horários
+                </span>
+              </button>
+            )}
             {hasAppointments && (
               <button
                 onClick={() => setTab('appointments')}
@@ -455,7 +476,7 @@ export default function ProfilePage({
 
               <div>
                 <label className="block text-xs text-slate-300 font-medium mb-1">
-                  {user.role === 'reader' ? 'WhatsApp / celular (exibido no atendimento por WhatsApp)' : 'Telefone / WhatsApp com DDD'}
+                  {user.role === 'reader' ? 'Celular de contato com DDD (só a curadoria vê; não aparece para clientes)' : 'Telefone com DDD'}
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-[#d4af37] absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -538,6 +559,10 @@ export default function ProfilePage({
                 {saving ? 'Salvando...' : 'Salvar alterações'}
               </button>
             </form>
+          )}
+
+          {tab === 'schedule' && hasSchedule && (
+            <ScheduleEditor readerProfile={readerProfile} onSaved={onReaderUpdated} />
           )}
 
           {tab === 'appointments' && (
